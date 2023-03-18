@@ -21,6 +21,7 @@ IPAddress subnet(255,255,255,240);
 IPAddress gateway(172,20,10,1);
 
 bool con_state = false;
+String myIP = "";
 char *M1 = "172.20.10.5";
 char *M2 = "172.20.10.4";
 unsigned long time_out1;
@@ -29,8 +30,8 @@ unsigned long times;
 bool contiState = true;
 uint8_t stateM1 = 1;
 uint8_t stateM2 = 1;
-uint8_t MaxstateM1 = 5;
-uint8_t MaxstateM2 = 5;
+uint8_t MaxstateM1 = 6; //6
+uint8_t MaxstateM2 = 5;  // 5
 String textInRam1 = "";
 String textInRam2 = "";
 String DATA[5] = {"0","0","0","0","0"}; // {client, equipment, ON/OFF, x, y}
@@ -48,11 +49,20 @@ uint8_t M2LED1_value = 0;
 uint8_t M2SW1_status = 0;
 String M2_status = "%NA";
 
+uint8_t motorPow = 0;
+uint8_t SWLeft = 0;
+uint8_t SWRight = 0;
+uint16_t motorSpeed = 0;
+String motorPosition = "S";
+String motorPositionComeIn = "S";
+String motorPositionComeInChange = "STOP";
+uint8_t motorPowComeIn = 0;
+
 BlynkTimer timer; 
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200); //คำสั่งเรียงตามนี้เท่านั้น
+  Serial.begin(9600); //คำสั่งเรียงตามนี้เท่านั้น
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pwd); 
   WiFi.config(fix_address, gateway, subnet);
   WiFi.begin(ssid, pwd);
@@ -60,7 +70,8 @@ void setup() {
     Serial.print("."); delay(800);
   } 
   Serial.println(""); Serial.println("Connected");
-  Serial.println("IP:" + WiFi.localIP().toString() + " Port:" + String(port));
+  myIP = WiFi.localIP().toString();
+  Serial.println("IP:" + myIP + " Port:" + String(port));
   udp.begin(port);
   timer.setInterval(200L, myTimer); 
 }
@@ -73,44 +84,48 @@ void loop() {
   if(millis() - times > 100) {
       times = millis();
     if (stateM1 == 1) {
-      request(M1, "M1_Temp_1_0_0&"); detect_Packet();
+      request(M1, "M1_Temp_1_0_0&"); detect_Packet("M1");
     }
 
     else if (stateM1 == 2) {
-      request(M1, "M1_Humi_1_0_0&"); detect_Packet();
+      request(M1, "M1_Humi_1_0_0&"); detect_Packet("M1");
     }
 
     else if (stateM1 == 3) {
-      request(M1, "M1_Light_1_0_0&"); detect_Packet();
+      request(M1, "M1_Light_1_0_0&"); detect_Packet("M1");
     }
 
     else if (stateM1 == 4) {
-      request(M1, "M1_M1LED1_" + String(M1SW1_status) + "_" + String(M1LED1_value) + "_0&"); detect_Packet();
+      request(M1, "M1_M1LED1_" + String(M1SW1_status) + "_" + String(M1LED1_value) + "_0&"); detect_Packet("M1");
     }
 
     else if(stateM1 == 5) {
-      request(M1, "M1_Status&"); detect_Packet();
+      request(M1, "M1_Status&"); detect_Packet("M1");
+    }
+
+    else if(stateM1 == 6) { //M1_Mor_Enable_speed_position
+      request(M1, "M1_Mor_" + String(motorPow) + "_" + String(motorSpeed) + "_" + changeSW2Text(SWLeft, SWRight) + "&"); detect_Packet("M1");
     }
 
 
     if (stateM2 == 1) {
-      request(M2, "M2_Temp_1_0_0&"); detect_Packet();
+      request(M2, "M2_Temp_1_0_0&"); detect_Packet("M2");
     }
     
     else if (stateM2 == 2) {
-      request(M2, "M2_Humi_1_0_0&"); detect_Packet();
+      request(M2, "M2_Humi_1_0_0&"); detect_Packet("M2");
     }
 
     else if (stateM2 == 3) {
-      request(M2, "M2_Light_1_0_0&"); detect_Packet();
+      request(M2, "M2_Light_1_0_0&"); detect_Packet("M2");
     } 
 
     else if (stateM2 == 4) {
-      request(M2, "M2_M2LED1_" + String(M2SW1_status) + "_" + String(M2LED1_value) + "_0&"); detect_Packet();
+      request(M2, "M2_M2LED1_" + String(M2SW1_status) + "_" + String(M2LED1_value) + "_0&"); detect_Packet("M2");
     }
 
     else if(stateM2 == 5) {
-      request(M2, "M2_Status&"); detect_Packet();
+      request(M2, "M2_Status&"); detect_Packet("M2");
     }
 
     shortData();
@@ -133,19 +148,22 @@ void Master2Client(char *target, String text) {
 
 void myTimer() {
     
-    // Blynk.virtualWrite(V0, "CUNNY");
-    Blynk.virtualWrite(V1, M1_Temp);
-    Blynk.virtualWrite(V2, M1_Humi);
-    Blynk.virtualWrite(V3, M1_Light);
-    Blynk.virtualWrite(V5, M1LED1_status);
+  // Blynk.virtualWrite(V0, "CUNNY");
+  Blynk.virtualWrite(V1, M1_Temp);
+  Blynk.virtualWrite(V2, M1_Humi);
+  Blynk.virtualWrite(V3, M1_Light);
+  Blynk.virtualWrite(V5, M1LED1_status);
 
-    Blynk.virtualWrite(V7, M2_Temp);
-    Blynk.virtualWrite(V8, M2_Humi);
-    Blynk.virtualWrite(V9, M2_Light);
-    Blynk.virtualWrite(V11, M2LED1_status);
+  Blynk.virtualWrite(V7, M2_Temp);
+  Blynk.virtualWrite(V8, M2_Humi);
+  Blynk.virtualWrite(V9, M2_Light);
+  Blynk.virtualWrite(V11, M2LED1_status);
 
-    Blynk.virtualWrite(V15, M1_status);  
-    Blynk.virtualWrite(V16, M2_status);
+  Blynk.virtualWrite(V15, M1_status);  
+  Blynk.virtualWrite(V16, M2_status);
+
+  Blynk.virtualWrite(V17, motorPowComeIn);
+  Blynk.virtualWrite(V22, changeText(motorPositionComeInChange));
 }
 
 BLYNK_WRITE(V4) {
@@ -164,6 +182,39 @@ BLYNK_WRITE(V12) {
   M2LED1_value = param.asInt();
 }
 
+BLYNK_WRITE(V21) {
+  motorPow = param.asInt();
+}
+
+BLYNK_WRITE(V19) {
+  SWLeft = param.asInt();
+}
+
+BLYNK_WRITE(V20) {
+  SWRight = param.asInt();
+}
+
+BLYNK_WRITE(V18) {
+  motorSpeed = param.asInt();
+}
+
+String changeSW2Text(uint8_t x, uint8_t y) {
+  if(x == 0 && y == 1) {return "R";}
+  else if(x == 1 && y == 0) {return "L";}
+  else{return "S";}
+}
+
+String changeText(String data) {
+  if(data == "L") {
+    return "Left Rotation";
+  }
+ else if(data == "R") {
+    return "Right Rotation";
+  }
+  else if(data == "S") {
+    return "STOP";
+  }
+}
 void shortData() {
   if(DATA[0] == "M1") {
     if(DATA[1] == "Temp") {
@@ -180,6 +231,10 @@ void shortData() {
     }
     else if(DATA[1] == "Status") {
       M1_status = DATA[2];
+    }
+    else if(DATA[1] == "Mor") {
+      motorPowComeIn = DATA[3].toInt();
+      motorPositionComeInChange = DATA[4];
     }
   }
   else if(DATA[0] == "M2") {
@@ -201,7 +256,7 @@ void shortData() {
   }
 }
 
-void detect_Packet() {
+void detect_Packet(String type) {
   int numbuff = udp.parsePacket();
   if(numbuff > 0) {
     int len = udp.read(packetBuffer, 255);
@@ -209,7 +264,7 @@ void detect_Packet() {
       packetBuffer[len] = '\0';
       String s(packetBuffer);
       splitString(s);
-      nextState(DATA[0]);
+      nextState(type);
       Serial.println(s);
     }
   }

@@ -10,22 +10,34 @@ char *pwd = "powerpay4";
 const uint16_t port = 2001;
 char packetBuffer[255];
 
-IPAddress fix_address(172,20,10,4);
+IPAddress fix_address(172,20,10,5);
 IPAddress subnet(255,255,255,240);
 IPAddress gateway(172,20,10,1);
-String name = "M2";
+String name = "M1";
+String myIP = "";
 char *MainHost = "172.20.10.6";
 String DATA[5] = {"0","0","0","0","0"}; // {client, equipment, ON/OFF, x, y}
 //                                                             1/0
 
 #define DHTPIN 4 
-#define DHTTYPE DHT22 
+#define DHTTYPE DHT11 
 DHT dht(DHTPIN, DHTTYPE);
 
 #define LDR1_Pin 34
 
-#define M2LED1 2
-uint8_t M2LED1_value = 0;
+#define M1LED1 2
+// uint8_t LED1_status = 0;
+uint8_t M1LED1_value = 0;
+
+#define PWM_Motor 3
+#define IN1 19
+#define IN2 18
+uint8_t motorPow = 0;
+uint16_t motorSpeed = 0;
+String motorPosition = "S";
+bool in1 = 0;
+bool in2 = 0;  
+uint8_t motorStatus = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -35,16 +47,23 @@ void setup() {
   while(WiFi.status() != WL_CONNECTED) {
     Serial.print("."); delay(800);
   } 
+  myIP = WiFi.localIP().toString();
   Serial.println(""); Serial.println("Connected");
-  Serial.println("IP:" + WiFi.localIP().toString() + " Port:" + String(port));
+  Serial.println("IP:" + myIP + " Port:" + String(port));
+  
   udp.begin(port);
 
   // DHT 22 Pin 4
   dht.begin();
   // pinMode(LED1, OUTPUT);
   ledcSetup(0, 5000, 8);
-  ledcAttachPin(M2LED1, 0);
-  
+  ledcAttachPin(M1LED1, 0);
+  //MOTOR
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  ledcSetup(0, 5000, 10);
+  ledcAttachPin(PWM_Motor, 1);
+
 }
 
 void loop() {
@@ -66,12 +85,16 @@ void loop() {
       else if (DATA[1] == "Light" && DATA[2] == "1") {
         sendPacket(MainHost, compress(DATA[1],"1",attchLDR(), "0"));
       }
-      else if (DATA[1] == "M2LED1") {
+      else if (DATA[1] == "M1LED1") {
         actionLED1(DATA[2].toInt(), DATA[3].toInt());
         sendPacket(MainHost, compress(DATA[1], led1pushStatus(DATA[2].toInt()), "0", "0"));
       }
       else if (DATA[1] == "Status") {
         sendPacket(MainHost, compress(DATA[1], pullStatus(), "0", "0"));
+      }                                 
+      else if (DATA[1] == "Mor") {   // M1_Mor_Enable_speed_position
+        ActiveMotor();
+        sendPacket(MainHost, compress(DATA[1], String(motorStatus), checkSpeed(), checkPosition()));
       }
     }
   }
@@ -113,7 +136,7 @@ uint8_t count = 0;
 String pullStatus() {
    if(count == 0) {
      count++;
-     return ("IP: " + WiFi.localIP().toString() + " PORT: " + port);
+     return ("IP: " + myIP + " PORT: " + port);
    }
    else if(count == 1) {
      count = 0;
@@ -146,9 +169,9 @@ String attchLDR() {
 }
 
 void actionLED1(uint8_t st, uint8_t value) {
-  M2LED1_value = map(value, 0, 20, 0, 255);
+  M1LED1_value = map(value, 0, 20, 0, 255);
   if(st != 0) {
-    ledcWrite(0, M2LED1_value);
+    ledcWrite(0, M1LED1_value);
   }
   else{
     ledcWrite(0, 0);
@@ -156,10 +179,49 @@ void actionLED1(uint8_t st, uint8_t value) {
 }
 
 String led1pushStatus(uint8_t st) {
-  if(M2LED1_value == 0 || st == 0) {
+  if(M1LED1_value == 0 || st == 0) {
     return "0";
   }
   else{
     return "1";
   }
+}
+
+String checkSpeed() {
+  if(motorStatus == 1) {
+    return String(map(motorSpeed,0 ,1000, 0, 100));
+  }
+  else{
+    return "0";
+  }
+}
+
+String checkPosition() {
+  if(motorStatus == 1) {
+    return motorPosition;
+  }
+  else{
+    return "S";
+  }
+}
+
+String setPosition(String data) {
+  if(data == "L") {
+    in1 = 0; in2 = 1;
+  }
+  else if(data == "R") {
+    in1 = 1; in2 = 0;
+  }
+  else if(data == "S"){
+    in1 = 0; in2 = 0;
+  }
+}
+
+void ActiveMotor() {
+  motorPow = DATA[2].toInt();
+  motorSpeed = DATA[3].toInt();
+  motorPosition = DATA[4];
+  setPosition(motorPosition);
+  if(motorPow == 0 || motorSpeed  == 0 || motorPosition == "S") { ledcWrite(1, 0); motorStatus = 0;}
+  else { ledcWrite(1, motorSpeed); motorStatus = 1; }
 }
