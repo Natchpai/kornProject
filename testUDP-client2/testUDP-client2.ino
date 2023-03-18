@@ -20,20 +20,39 @@ IPAddress fix_address(172,20,10,6);
 IPAddress subnet(255,255,255,240);
 IPAddress gateway(172,20,10,1);
 
+bool con_state = false;
 char *M1 = "172.20.10.5";
 char *M2 = "172.20.10.4";
-unsigned long time_out;
+unsigned long time_out1;
+unsigned long time_out2;
 unsigned long times;
 bool contiState = true;
-uint8_t state = 1;
-uint8_t Maxstate = 3;
-String textInRam = "";
-String DATA[5] = {"0","0","0","0","0"}; // {client, equipment, I/O, x, y}
+uint8_t stateM1 = 1;
+uint8_t stateM2 = 1;
+uint8_t MaxstateM1 = 5;
+uint8_t MaxstateM2 = 5;
+String textInRam1 = "";
+String textInRam2 = "";
+String DATA[5] = {"0","0","0","0","0"}; // {client, equipment, ON/OFF, x, y}
 //                                                             1/0
+
+float M1_Temp; float M1_Humi; float M1_Light;
+uint8_t M1LED1_status = 0;
+uint8_t M1LED1_value = 0;
+uint8_t M1SW1_status = 0;
+String M1_status = "%NA";
+
+float M2_Temp; float M2_Humi; float M2_Light;
+uint8_t M2LED1_status = 0;
+uint8_t M2LED1_value = 0;
+uint8_t M2SW1_status = 0;
+String M2_status = "%NA";
+
+BlynkTimer timer; 
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(9600); //คำสั่งเรียงตามนี้เท่านั้น
+  Serial.begin(115200); //คำสั่งเรียงตามนี้เท่านั้น
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pwd); 
   WiFi.config(fix_address, gateway, subnet);
   WiFi.begin(ssid, pwd);
@@ -43,42 +62,144 @@ void setup() {
   Serial.println(""); Serial.println("Connected");
   Serial.println("IP:" + WiFi.localIP().toString() + " Port:" + String(port));
   udp.begin(port);
+  timer.setInterval(200L, myTimer); 
 }
 
 
 void loop() {
   // put your main code here, to run repeatedly:
   Blynk.run();
+
   if(millis() - times > 100) {
-    times = millis();
-    if (state == 1) {
-      request(M1, "M1_Temp_0_0&"); detect_Packet();
+      times = millis();
+    if (stateM1 == 1) {
+      request(M1, "M1_Temp_1_0_0&"); detect_Packet();
     }
-    else if (state == 2) {
-      request(M1, "M1_Humi_0_0&"); detect_Packet();
+
+    else if (stateM1 == 2) {
+      request(M1, "M1_Humi_1_0_0&"); detect_Packet();
     }
-    else if (state == 3) {
-      request(M1, "A3_0_0_0&"); detect_Packet();
+
+    else if (stateM1 == 3) {
+      request(M1, "M1_Light_1_0_0&"); detect_Packet();
     }
+
+    else if (stateM1 == 4) {
+      request(M1, "M1_M1LED1_" + String(M1SW1_status) + "_" + String(M1LED1_value) + "_0&"); detect_Packet();
+    }
+
+    else if(stateM1 == 5) {
+      request(M1, "M1_Status&"); detect_Packet();
+    }
+
+
+    if (stateM2 == 1) {
+      request(M2, "M2_Temp_1_0_0&"); detect_Packet();
+    }
+    
+    else if (stateM2 == 2) {
+      request(M2, "M2_Humi_1_0_0&"); detect_Packet();
+    }
+
+    else if (stateM2 == 3) {
+      request(M2, "M2_Light_1_0_0&"); detect_Packet();
+    } 
+
+    else if (stateM2 == 4) {
+      request(M2, "M2_M2LED1_" + String(M2SW1_status) + "_" + String(M2LED1_value) + "_0&"); detect_Packet();
+    }
+
+    else if(stateM2 == 5) {
+      request(M2, "M2_Status&"); detect_Packet();
+    }
+
+    shortData();
   }
-  pushToBlynk();
+
+  timer.run();
+  
 }
 
 BLYNK_CONNECTED(){}
 
-void pushToBlynk() {
-  if(DATA[1] == "Temp") {
-    Blynk.virtualWrite(V0, "CUNNY");
-    Blynk.virtualWrite(V1, DATA[3].toFloat());
-    nextState();
+void Master2Client(char *target, String text) {
+  if(target == M1) {
+    Blynk.virtualWrite(V13, "M1: "+ text);
   }
-  else if(DATA[1] == "Humi") {
-    Blynk.virtualWrite(V2, DATA[3].toFloat());
-    nextState();
+  else if(target == M2) {
+    Blynk.virtualWrite(V14, "M2: "+ text);
   }
 }
 
+void myTimer() {
+    
+    // Blynk.virtualWrite(V0, "CUNNY");
+    Blynk.virtualWrite(V1, M1_Temp);
+    Blynk.virtualWrite(V2, M1_Humi);
+    Blynk.virtualWrite(V3, M1_Light);
+    Blynk.virtualWrite(V5, M1LED1_status);
 
+    Blynk.virtualWrite(V7, M2_Temp);
+    Blynk.virtualWrite(V8, M2_Humi);
+    Blynk.virtualWrite(V9, M2_Light);
+    Blynk.virtualWrite(V11, M2LED1_status);
+
+    Blynk.virtualWrite(V15, M1_status);  
+    Blynk.virtualWrite(V16, M2_status);
+}
+
+BLYNK_WRITE(V4) {
+  M1SW1_status = param.asInt();
+}
+
+BLYNK_WRITE(V6) {
+  M1LED1_value = param.asInt();
+}
+
+BLYNK_WRITE(V10) {
+  M2SW1_status = param.asInt();
+}
+
+BLYNK_WRITE(V12) {
+  M2LED1_value = param.asInt();
+}
+
+void shortData() {
+  if(DATA[0] == "M1") {
+    if(DATA[1] == "Temp") {
+      M1_Temp = DATA[3].toFloat();   
+    }
+    else if(DATA[1] == "Humi") {
+      M1_Humi = DATA[3].toFloat();    
+    }
+    else if(DATA[1] == "Light") {
+      M1_Light = DATA[3].toFloat();
+    }
+    else if(DATA[1] == "M1LED1") {
+      M1LED1_status = DATA[2].toInt();
+    }
+    else if(DATA[1] == "Status") {
+      M1_status = DATA[2];
+    }
+  }
+  else if(DATA[0] == "M2") {
+    if(DATA[1] == "Temp") {
+      M2_Temp = DATA[3].toFloat();   
+    }
+    else if(DATA[1] == "Humi") {
+      M2_Humi = DATA[3].toFloat();    
+    }
+    else if(DATA[1] == "Light") {
+      M2_Light = DATA[3].toFloat();
+    }
+    else if(DATA[1] == "M2LED1") {
+      M2LED1_status = DATA[2].toInt();
+    }
+    else if(DATA[1] == "Status") {
+      M2_status = DATA[2];
+    }
+  }
+}
 
 void detect_Packet() {
   int numbuff = udp.parsePacket();
@@ -87,25 +208,52 @@ void detect_Packet() {
     if(len > 0) {
       packetBuffer[len] = '\0';
       String s(packetBuffer);
-      Serial.println(s);
       splitString(s);
+      nextState(DATA[0]);
+      Serial.println(s);
     }
   }
 }
 
-void nextState() {state += 1; if(state > Maxstate) state = 1;}
+void nextState(String type) {
+  if(type == "M1") {
+    stateM1 += 1; 
+    if(stateM1 > MaxstateM1) stateM1 = 1;
+  }
+  else if(type == "M2") {
+    stateM2 += 1; 
+    if(stateM2 > MaxstateM2) stateM2 = 1;
+  }
+}
 
 void request(char *targetHost, String text){
-  if(text != textInRam) {
-    textInRam = text;
+  if(text != textInRam1 && targetHost == M1) {
+    textInRam1 = text;
+    Master2Client(targetHost, "Normal State");
     sendPacket(targetHost, text); 
-    time_out = millis();
+    time_out1 = millis();
+  }
+  else if(text != textInRam2 && targetHost == M2) {
+    textInRam2 = text;
+    Master2Client(targetHost, "Normal State");
+    sendPacket(targetHost, text); 
+    time_out2 = millis();
   }
 
-  else if((millis() - time_out >= 1500) && text == textInRam) {
-    time_out = millis();
+  if((millis() - time_out1 >= 1500) && text == textInRam1) {
+    time_out1 = millis();
     Serial.println(String(targetHost) + " Request timed out.");
+    Master2Client(targetHost, " Request timed out.");
+    M1_status = "Lost connection!";
     sendPacket(targetHost, text);
+  }
+
+  if((millis() - time_out2 >= 1500) && text == textInRam2) {
+    time_out2 = millis();
+    Serial.println(String(targetHost) + " Request timed out.");
+    Master2Client(targetHost, " Request timed out.");
+    M2_status = "Lost connection!";
+    sendPacket(targetHost, text);;
   }
 }
 

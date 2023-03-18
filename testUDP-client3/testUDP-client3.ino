@@ -10,23 +10,22 @@ char *pwd = "powerpay4";
 const uint16_t port = 2001;
 char packetBuffer[255];
 
-IPAddress fix_address(172,20,10,5);
+IPAddress fix_address(172,20,10,4);
 IPAddress subnet(255,255,255,240);
 IPAddress gateway(172,20,10,1);
-String name = "M1";
+String name = "M2";
 char *MainHost = "172.20.10.6";
 String DATA[5] = {"0","0","0","0","0"}; // {client, equipment, ON/OFF, x, y}
 //                                                             1/0
 
 #define DHTPIN 4 
-#define DHTTYPE DHT11 
+#define DHTTYPE DHT22 
 DHT dht(DHTPIN, DHTTYPE);
 
 #define LDR1_Pin 34
 
-#define M1LED1 2
-// uint8_t LED1_status = 0;
-uint8_t M1LED1_value = 0;
+#define M2LED1 2
+uint8_t M2LED1_value = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -44,7 +43,7 @@ void setup() {
   dht.begin();
   // pinMode(LED1, OUTPUT);
   ledcSetup(0, 5000, 8);
-  ledcAttachPin(M1LED1, 0);
+  ledcAttachPin(M2LED1, 0);
   
 }
 
@@ -67,7 +66,7 @@ void loop() {
       else if (DATA[1] == "Light" && DATA[2] == "1") {
         sendPacket(MainHost, compress(DATA[1],"1",attchLDR(), "0"));
       }
-      else if (DATA[1] == "M1LED1") {
+      else if (DATA[1] == "M2LED1") {
         actionLED1(DATA[2].toInt(), DATA[3].toInt());
         sendPacket(MainHost, compress(DATA[1], led1pushStatus(DATA[2].toInt()), "0", "0"));
       }
@@ -123,7 +122,6 @@ String pullStatus() {
 }
 
 
-
 String attchDHT_temp() {
   float t = dht.readTemperature();
   if(isnan(t)) {
@@ -148,9 +146,9 @@ String attchLDR() {
 }
 
 void actionLED1(uint8_t st, uint8_t value) {
-  M1LED1_value = map(value, 0, 20, 0, 255);
+  M2LED1_value = map(value, 0, 20, 0, 255);
   if(st != 0) {
-    ledcWrite(0, M1LED1_value);
+    ledcWrite(0, M2LED1_value);
   }
   else{
     ledcWrite(0, 0);
@@ -158,7 +156,7 @@ void actionLED1(uint8_t st, uint8_t value) {
 }
 
 String led1pushStatus(uint8_t st) {
-  if(M1LED1_value == 0 || st == 0) {
+  if(M2LED1_value == 0 || st == 0) {
     return "0";
   }
   else{
