@@ -16,14 +16,12 @@ IPAddress gateway(172,20,10,1);
 String name = "M1";
 String myIP = "";
 char *MainHost = "172.20.10.6";
-String DATA[12] = {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"}; 
+String DATA[5] = {"0","0","0","0","0","0","0","0","0","0","0"}; // {client, equipment, ON/OFF, x, y}
+//                                                             1/0
 
 #define DHTPIN 4 
 #define DHTTYPE DHT11 
 DHT dht(DHTPIN, DHTTYPE);
-unsigned long pullDHT;
-float t = 0;
-float h = 0;
 
 #define LDR1_Pin 34
 
@@ -63,7 +61,7 @@ void setup() {
   //MOTOR
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
-  ledcSetup(1, 5000, 10);
+  ledcSetup(0, 5000, 10);
   ledcAttachPin(PWM_Motor, 1);
 
 }
@@ -76,33 +74,30 @@ void loop() {
     if(len > 0) {
       packetBuffer[len] = '\0';
       String s(packetBuffer);
+      // Serial.println(s);
       splitString(s);
-      Serial.println(s);
-      // sendPacket(MainHost, "M1_KKKKKKKKKKKKK&");
-      // if(DATA[0] == name){
-        operateDataINPUI();
-        responds();
-      // }
+      if (DATA[1] == "Temp" && DATA[2] == "1") {
+        sendPacket(MainHost, compress(DATA[1],"1",attchDHT_temp(), "0"));
+      }
+      else if (DATA[1] == "Humi" && DATA[2] == "1") {
+        sendPacket(MainHost, compress(DATA[1],"1",attchDHT_humi(), "0"));
+      }
+      else if (DATA[1] == "Light" && DATA[2] == "1") {
+        sendPacket(MainHost, compress(DATA[1],"1",attchLDR(), "0"));
+      }
+      else if (DATA[1] == "M1LED1") {
+        actionLED1(DATA[2].toInt(), DATA[3].toInt());
+        sendPacket(MainHost, compress(DATA[1], led1pushStatus(DATA[2].toInt()), "0", "0"));
+      }
+      else if (DATA[1] == "Status") {
+        sendPacket(MainHost, compress(DATA[1], pullStatus(), "0", "0"));
+      }                                 
+      else if (DATA[1] == "Mor") {   // M1_Mor_Enable_speed_position
+        ActiveMotor();
+        sendPacket(MainHost, compress(DATA[1], String(motorStatus), checkSpeed(), checkPosition()));
+      }
     }
   }
-
-  if(millis() - pullDHT >= 2000) {pullDHT = millis(); runTemp();}
-
-}
-// {client, equipment, io, x, y}
-//    0       1       2   3   4  
- // 0  1    2    3    4     *5     *6      7    *8    *9      *10
-// M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
-
-void operateDataINPUI() {
-    ActiveMotor();
-    actionLED1(DATA[5].toInt(), DATA[6].toInt());
-}
-
-void responds(){
-  sendPacket(MainHost, compress(attchDHT_temp(), attchDHT_humi(), attchLDR()
-  , led1pushStatus(DATA[2].toInt()) ,"X", pullStatus()
-  , String(motorStatus), checkSpeed(), checkPosition()));
 }
 
 void splitString(String str){
@@ -128,12 +123,13 @@ void sendPacket(char *targetHost, String str_mess) {
   udp.endPacket();
 }
 
-String compress(String a2, String a3, String a4, String a5, String a6, String a7, String a8, String a9, String a10) {
-  String i = String(name + "_A_" + a2 + "_" + a3 + "_" + a4 + "_" 
-  + a5 + "_" + a6 + "_" + a7 + "_" + a8 + "_" + a9 + "_" + a10 + "&");
+String compress(String eq, String IO, String data1, String data2) {
+  String i = String(name + "_" + eq + "_" + IO + "_" + data1 + "_" + data2 + "&");
   // Serial.println(i);
   return i;
 }
+
+
 
 
 uint8_t count = 0;
@@ -150,23 +146,21 @@ String pullStatus() {
 
 
 String attchDHT_temp() {
-  return String(t);
-}
-
-
-void runTemp() {
-  float H = dht.readHumidity();
-  float T = dht.readTemperature();
-  if(!isnan(H)) {
-    h = H;
-  }
-  if(!isnan(T)) {
-    t = T;
+  float t = dht.readTemperature();
+  if(isnan(t)) {
+    return "0";
+  }else{
+    return String(t);
   }
 }
 
 String attchDHT_humi() {
-  return String(h);
+  float h = dht.readHumidity();
+  if(isnan(h)) {
+    return "0";
+  }else{
+    return String(h);
+  }
 }
 
 String attchLDR() {
@@ -211,7 +205,7 @@ String checkPosition() {
   }
 }
 
-void setPosition(String data) {
+String setPosition(String data) {
   if(data == "L") {
     in1 = 0; in2 = 1;
   }
@@ -222,12 +216,11 @@ void setPosition(String data) {
     in1 = 0; in2 = 0;
   }
 }
- // 0  1    2    3    4     *5     *6      7    *8    *9      *10
-// M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
+
 void ActiveMotor() {
-  motorPow = DATA[8].toInt();
-  motorSpeed = DATA[9].toInt();
-  motorPosition = DATA[10];
+  motorPow = DATA[2].toInt();
+  motorSpeed = DATA[3].toInt();
+  motorPosition = DATA[4];
   setPosition(motorPosition);
   if(motorPow == 0 || motorSpeed  == 0 || motorPosition == "S") { ledcWrite(1, 0); motorStatus = 0;}
   else { ledcWrite(1, motorSpeed); motorStatus = 1; }

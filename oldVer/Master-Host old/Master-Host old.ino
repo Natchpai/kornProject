@@ -27,15 +27,14 @@ unsigned long time_out1;
 unsigned long time_out2;
 unsigned long times;
 bool contiState = true;
-uint8_t Mstate = 1;
-uint8_t Maxstate = 2;
+uint8_t stateM1 = 1;
+uint8_t stateM2 = 1;
+uint8_t MaxstateM1 = 6; //6
+uint8_t MaxstateM2 = 5;  // 5
 String textInRam1 = "";
 String textInRam2 = "";
-
-// 0  1    2    3    4     5     6      7    8    9      10
-// M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
-// M2_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St&
-String DATA[11] = {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"};                                 
+String DATA[5] = {"0","0","0","0","0"}; // {client, equipment, ON/OFF, x, y}
+//                                                             1/0
 
 float M1_Temp; float M1_Humi; float M1_Light;
 uint8_t M1LED1_status = 0;
@@ -76,25 +75,63 @@ void setup() {
   timer.setInterval(200L, myTimer); 
 }
 
+
 void loop() {
   // put your main code here, to run repeatedly:
   Blynk.run();
-  // ss();
 
- if(millis() - times > 400) {//LEDsw_LEDval_M1St_mPow_mSpeed_dir&
-    times = mills();
-    if(Mstate == 1) {
-      request(M1, "M1_A_T_H_L_" + String(M1SW1_status) + "_" + String(M1LED1_value) + "_Status_"
-      + String(motorPow) + "_" + String(motorSpeed) + "_" + changeSW2Text(SWLeft, SWRight) + "&" ); 
-      detect_Packet();
+  if(millis() - times > 100) {
+      times = millis();
+    if (stateM1 == 1) {
+      request(M1, "M1_Temp_1_0_0&"); detect_Packet("M1");
     }
-    else if(Mstate == 2) {
-      request(M2, "M2_A_T_H_L_" + String(M2SW1_status) + "_" + String(M2LED1_value) + "_Status&"); 
-      detect_Packet();
+
+    else if (stateM1 == 2) {
+      request(M1, "M1_Humi_1_0_0&"); detect_Packet("M1");
     }
-    nextState();
- }
+
+    else if (stateM1 == 3) {
+      request(M1, "M1_Light_1_0_0&"); detect_Packet("M1");
+    }
+
+    else if (stateM1 == 4) {
+      request(M1, "M1_M1LED1_" + String(M1SW1_status) + "_" + String(M1LED1_value) + "_0&"); detect_Packet("M1");
+    }
+
+    else if(stateM1 == 5) {
+      request(M1, "M1_Status&"); detect_Packet("M1");
+    }
+
+    else if(stateM1 == 6) { //M1_Mor_Enable_speed_position
+      request(M1, "M1_Mor_" + String(motorPow) + "_" + String(motorSpeed) + "_" + changeSW2Text(SWLeft, SWRight) + "&"); detect_Packet("M1");
+    }
+
+
+    if (stateM2 == 1) {
+      request(M2, "M2_Temp_1_0_0&"); detect_Packet("M2");
+    }
+    
+    else if (stateM2 == 2) {
+      request(M2, "M2_Humi_1_0_0&"); detect_Packet("M2");
+    }
+
+    else if (stateM2 == 3) {
+      request(M2, "M2_Light_1_0_0&"); detect_Packet("M2");
+    } 
+
+    else if (stateM2 == 4) {
+      request(M2, "M2_M2LED1_" + String(M2SW1_status) + "_" + String(M2LED1_value) + "_0&"); detect_Packet("M2");
+    }
+
+    else if(stateM2 == 5) {
+      request(M2, "M2_Status&"); detect_Packet("M2");
+    }
+
+    shortData();
+  }
+
   timer.run();
+  
 }
 
 BLYNK_CONNECTED(){}
@@ -177,56 +214,71 @@ String changeText(String data) {
     return "STOP";
   }
 }
-// 0  1    2    3    4     5     6      7    8    9      10
-// M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
-// M2_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St&
+
 void shortData() {
   if(DATA[0] == "M1") {
-    M1_Temp = DATA[2].toFloat();   
-
-    M1_Humi = DATA[3].toFloat();    
-
-    M1_Light = DATA[4].toFloat();
-    
-    if(DATA[5] != "X") M1LED1_status = DATA[5].toInt();
-
-    M1_status = DATA[7];
-    
-    if(DATA[8] != "X") motorPowComeIn = DATA[9].toInt();
-    if(DATA[10] != "X") motorPositionComeInChange = DATA[10];
-    
+    if(DATA[1] == "Temp") {
+      M1_Temp = DATA[3].toFloat();   
+    }
+    else if(DATA[1] == "Humi") {
+      M1_Humi = DATA[3].toFloat();    
+    }
+    else if(DATA[1] == "Light") {
+      M1_Light = DATA[3].toFloat();
+    }
+    else if(DATA[1] == "M1LED1") {
+      M1LED1_status = DATA[2].toInt();
+    }
+    else if(DATA[1] == "Status") {
+      M1_status = DATA[2];
+    }
+    else if(DATA[1] == "Mor") {
+      motorPowComeIn = DATA[3].toInt();
+      motorPositionComeInChange = DATA[4];
+    }
   }
   else if(DATA[0] == "M2") {
-
-    M2_Temp = DATA[2].toFloat();   
-
-    M2_Humi = DATA[3].toFloat();    
-    
-    M2_Light = DATA[4].toFloat();
-    
-    if(DATA[5] != "X") M2LED1_status = DATA[5].toInt();
-    
-    M2_status = DATA[7];
+    if(DATA[1] == "Temp") {
+      M2_Temp = DATA[3].toFloat();   
+    }
+    else if(DATA[1] == "Humi") {
+      M2_Humi = DATA[3].toFloat();    
+    }
+    else if(DATA[1] == "Light") {
+      M2_Light = DATA[3].toFloat();
+    }
+    else if(DATA[1] == "M2LED1") {
+      M2LED1_status = DATA[2].toInt();
+    }
+    else if(DATA[1] == "Status") {
+      M2_status = DATA[2];
+    }
   }
 }
 
-void detect_Packet() {
+void detect_Packet(String type) {
   int numbuff = udp.parsePacket();
   if(numbuff > 0) {
     int len = udp.read(packetBuffer, 255);
     if(len > 0) {
       packetBuffer[len] = '\0';
       String s(packetBuffer);
-      Serial.println(s);
       splitString(s);
-      shortData();
+      nextState(type);
+      Serial.println(s);
     }
   }
 }
 
-void nextState() {
-  Mstate += 1; 
-  if(Mstate > Maxstate) Mstate = 1;
+void nextState(String type) {
+  if(type == "M1") {
+    stateM1 += 1; 
+    if(stateM1 > MaxstateM1) stateM1 = 1;
+  }
+  else if(type == "M2") {
+    stateM2 += 1; 
+    if(stateM2 > MaxstateM2) stateM2 = 1;
+  }
 }
 
 void request(char *targetHost, String text){
@@ -245,7 +297,7 @@ void request(char *targetHost, String text){
     if(M2_status == "Lost connection!") M2_status = "Connected to Master";
   }
 
-  else if((millis() - time_out1 >= 5000) && text == textInRam1) {
+  else if((millis() - time_out1 >= 1500) && text == textInRam1) {
     time_out1 = millis();
     Serial.println(String(targetHost) + " Request timed out.");
     Master2Client(targetHost, " Request timed out.");
@@ -253,7 +305,7 @@ void request(char *targetHost, String text){
     sendPacket(targetHost, text);
   }
 
-  else if((millis() - time_out2 >= 5000) && text == textInRam2) {
+  else if((millis() - time_out2 >= 1500) && text == textInRam2) {
     time_out2 = millis();
     Serial.println(String(targetHost) + " Request timed out.");
     Master2Client(targetHost, " Request timed out.");
@@ -284,4 +336,3 @@ void sendPacket(char *targetHost, String str_mess) {
   udp.flush();
   udp.endPacket();
 }
-
