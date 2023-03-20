@@ -20,7 +20,7 @@ char *MainHost = "172.20.10.6";
 // 0  1    2    3    4     5     6      7    8    9      10
 // M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
 // M2_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St&
-String DATA[12] = {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"};
+String DATA[11] = {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"};
 
 
 #define DHTPIN 4 
@@ -116,17 +116,9 @@ String compress(String a2, String a3, String a4, String a5, String a6, String a7
 }
 
 
-
 uint8_t count = 0;
 String pullStatus() {
-   if(count == 0) {
-     count++;
-     return ("IP: " + myIP + " PORT: " + port);
-   }
-   else if(count == 1) {
-     count = 0;
-     return "Normal State";
-   }
+  return ("IP: " + myIP + " PORT: " + port);
 }
 
 

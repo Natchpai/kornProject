@@ -31,6 +31,10 @@ uint8_t Mstate = 1;
 uint8_t Maxstate = 2;
 String textInRam1 = "";
 String textInRam2 = "";
+String MastertoC1 = "";
+String MastertoC2 = "";
+bool responseM1 = true;
+bool responseM2 = true;
 
 // 0  1    2    3    4     5     6      7    8    9      10
 // M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
@@ -73,7 +77,7 @@ void setup() {
   myIP = WiFi.localIP().toString();
   Serial.println("IP:" + myIP + " Port:" + String(port));
   udp.begin(port);
-  timer.setInterval(200L, myTimer); 
+  timer.setInterval(1000L, myTimer); 
 }
 
 void loop() {
@@ -81,19 +85,20 @@ void loop() {
   Blynk.run();
   // ss();
 
- if(millis() - times > 400) {//LEDsw_LEDval_M1St_mPow_mSpeed_dir&
-    times = mills();
+ if(millis() - times > 900) {//LEDsw_LEDval_M1St_mPow_mSpeed_dir&
+    times = millis();
     if(Mstate == 1) {
       request(M1, "M1_A_T_H_L_" + String(M1SW1_status) + "_" + String(M1LED1_value) + "_Status_"
       + String(motorPow) + "_" + String(motorSpeed) + "_" + changeSW2Text(SWLeft, SWRight) + "&" ); 
-      detect_Packet();
+      nextState();
     }
     else if(Mstate == 2) {
       request(M2, "M2_A_T_H_L_" + String(M2SW1_status) + "_" + String(M2LED1_value) + "_Status&"); 
-      detect_Packet();
+      nextState();
     }
-    nextState();
+   
  }
+  detect_Packet();
   timer.run();
 }
 
@@ -101,10 +106,10 @@ BLYNK_CONNECTED(){}
 
 void Master2Client(char *target, String text) {
   if(target == M1) {
-    Blynk.virtualWrite(V13, "M1: "+ text);
+    MastertoC1 = "M1: " + text;
   }
   else if(target == M2) {
-    Blynk.virtualWrite(V14, "M2: "+ text);
+    MastertoC2 = "M2: " + text;
   }
 }
 
@@ -126,6 +131,9 @@ void myTimer() {
 
   Blynk.virtualWrite(V17, motorPowComeIn);
   Blynk.virtualWrite(V22, changeText(motorPositionComeInChange));
+
+  Blynk.virtualWrite(V13, MastertoC1);
+  Blynk.virtualWrite(V14, MastertoC2);
 }
 
 BLYNK_WRITE(V4) {
@@ -182,6 +190,9 @@ String changeText(String data) {
 // M2_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St&
 void shortData() {
   if(DATA[0] == "M1") {
+
+    responseM1 = true;
+
     M1_Temp = DATA[2].toFloat();   
 
     M1_Humi = DATA[3].toFloat();    
@@ -197,6 +208,8 @@ void shortData() {
     
   }
   else if(DATA[0] == "M2") {
+
+    responseM2 = true;
 
     M2_Temp = DATA[2].toFloat();   
 
@@ -230,22 +243,14 @@ void nextState() {
 }
 
 void request(char *targetHost, String text){
-  if(text != textInRam1 && targetHost == M1) {
-    textInRam1 = text;
+  if(targetHost == M1 && responseM1 == true) {
     Master2Client(targetHost, "Normal State");
     sendPacket(targetHost, text); 
     time_out1 = millis();
+    responseM1 = false;
     if(M1_status == "Lost connection!") M1_status = "Connected to Master";
   }
-  else if(text != textInRam2 && targetHost == M2) {
-    textInRam2 = text;
-    Master2Client(targetHost, "Normal State");
-    sendPacket(targetHost, text); 
-    time_out2 = millis();
-    if(M2_status == "Lost connection!") M2_status = "Connected to Master";
-  }
-
-  else if((millis() - time_out1 >= 5000) && text == textInRam1) {
+  else if((millis() - time_out1 >= 5000)) {
     time_out1 = millis();
     Serial.println(String(targetHost) + " Request timed out.");
     Master2Client(targetHost, " Request timed out.");
@@ -253,7 +258,14 @@ void request(char *targetHost, String text){
     sendPacket(targetHost, text);
   }
 
-  else if((millis() - time_out2 >= 5000) && text == textInRam2) {
+  if(targetHost == M2 && responseM2 == true) {
+    Master2Client(targetHost, "Normal State");
+    sendPacket(targetHost, text); 
+    time_out2 = millis();
+    responseM2 = false;
+    if(M2_status == "Lost connection!") M2_status = "Connected to Master";
+  }
+  else if((millis() - time_out2 >= 5000)) {
     time_out2 = millis();
     Serial.println(String(targetHost) + " Request timed out.");
     Master2Client(targetHost, " Request timed out.");

@@ -16,7 +16,7 @@ IPAddress gateway(172,20,10,1);
 String name = "M1";
 String myIP = "";
 char *MainHost = "172.20.10.6";
-String DATA[12] = {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"}; 
+String DATA[11] = {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"}; 
 
 #define DHTPIN 4 
 #define DHTTYPE DHT11 
@@ -40,6 +40,8 @@ String motorPosition = "S";
 bool in1 = 0;
 bool in2 = 0;  
 uint8_t motorStatus = 0;
+bool startMotor = true;
+uint16_t motorRawSpeed = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -78,16 +80,11 @@ void loop() {
       String s(packetBuffer);
       splitString(s);
       Serial.println(s);
-      // sendPacket(MainHost, "M1_KKKKKKKKKKKKK&");
-      // if(DATA[0] == name){
-        operateDataINPUI();
-        responds();
-      // }
+      operateDataINPUI();
+      responds();
     }
   }
-
   if(millis() - pullDHT >= 2000) {pullDHT = millis(); runTemp();}
-
 }
 // {client, equipment, io, x, y}
 //    0       1       2   3   4  
@@ -136,16 +133,8 @@ String compress(String a2, String a3, String a4, String a5, String a6, String a7
 }
 
 
-uint8_t count = 0;
 String pullStatus() {
-   if(count == 0) {
-     count++;
-     return ("IP: " + myIP + " PORT: " + port);
-   }
-   else if(count == 1) {
-     count = 0;
-     return "Normal State";
-   }
+    return ("IP: " + myIP + " PORT: " + port);
 }
 
 
@@ -195,7 +184,7 @@ String led1pushStatus(uint8_t st) {
 
 String checkSpeed() {
   if(motorStatus == 1) {
-    return String(map(motorSpeed,0 ,1000, 0, 100));
+    return String(map(motorSpeed,600 ,1000, 5, 100));
   }
   else{
     return "0";
@@ -221,14 +210,28 @@ void setPosition(String data) {
   else if(data == "S"){
     in1 = 0; in2 = 0;
   }
+  digitalWrite(IN1, in1);
+  digitalWrite(IN2, in2);
 }
  // 0  1    2    3    4     *5     *6      7    *8    *9      *10
 // M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
+
 void ActiveMotor() {
   motorPow = DATA[8].toInt();
-  motorSpeed = DATA[9].toInt();
+  motorRawSpeed = DATA[9].toInt();
+  if(motorRawSpeed != 0) {motorSpeed = map(motorRawSpeed, 0, 1000, 600, 1000);}
+  else{motorSpeed = 0;}
   motorPosition = DATA[10];
   setPosition(motorPosition);
-  if(motorPow == 0 || motorSpeed  == 0 || motorPosition == "S") { ledcWrite(1, 0); motorStatus = 0;}
-  else { ledcWrite(1, motorSpeed); motorStatus = 1; }
+  if(motorPow == 0 || motorSpeed  == 0 || motorPosition == "S") { 
+    ledcWrite(1, 0); motorStatus = 0;
+    startMotor = true;
+  }
+  else { 
+    if(startMotor == true) {
+      ledcWrite(1, 1000); delay(50);
+      startMotor = false;
+    }
+    ledcWrite(1, motorSpeed); motorStatus = 1; 
+  }
 }
