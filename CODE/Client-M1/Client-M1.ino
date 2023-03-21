@@ -198,7 +198,7 @@ String led1pushStatus(uint8_t st) {
 
 String checkSpeed() {
   if(motorStatus == 1) {
-    return String(map(motorSpeed,600 ,1000, 5, 100));
+    return String(map(motorSpeed,450 ,1000, 5, 100));
   }
   else{
     return "0";
@@ -233,7 +233,7 @@ void setPosition(String data) {
 void ActiveMotor() {
   motorPow = DATA[8].toInt();
   motorRawSpeed = DATA[9].toInt();
-  if(motorRawSpeed != 0) {motorSpeed = map(motorRawSpeed, 0, 1000, 600, 1000);}
+  if(motorRawSpeed != 0) {motorSpeed = map(motorRawSpeed, 0, 1000, 450, 1000);}
   else{motorSpeed = 0;}
   motorPosition = DATA[10];
   setPosition(motorPosition);

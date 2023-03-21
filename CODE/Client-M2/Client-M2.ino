@@ -1,4 +1,4 @@
-//EQUIPMENT
+ /    //EQUIPMENT
 #include <DHT.h>
 
 // NETWORKS
