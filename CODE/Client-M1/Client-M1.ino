@@ -18,17 +18,18 @@ String myIP = "";
 char *MainHost = "172.20.10.6";
 String DATA[11] = {"0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"}; 
 
+#define statusLEDWifi 5
 #define DHTPIN 4 
 #define DHTTYPE DHT11 
 DHT dht(DHTPIN, DHTTYPE);
 unsigned long pullDHT;
 float t = 0;
 float h = 0;
+bool DHTDis = false;
 
 #define LDR1_Pin 34
 
 #define M1LED1 2
-// uint8_t LED1_status = 0;
 uint8_t M1LED1_value = 0;
 
 #define PWM_Motor 3
@@ -48,6 +49,7 @@ void setup() {
   Serial.begin(115200);
   WiFi.config(fix_address, gateway, subnet);
   WiFi.begin(ssid, pwd);
+  pinMode(statusLEDWifi, OUTPUT);
   while(WiFi.status() != WL_CONNECTED) {
     Serial.print("."); delay(800);
   } 
@@ -59,7 +61,6 @@ void setup() {
 
   // DHT 22 Pin 4
   dht.begin();
-  // pinMode(LED1, OUTPUT);
   ledcSetup(0, 5000, 8);
   ledcAttachPin(M1LED1, 0);
   //MOTOR
@@ -84,7 +85,11 @@ void loop() {
       responds();
     }
   }
-  if(millis() - pullDHT >= 2000) {pullDHT = millis(); runTemp();}
+  if(millis() - pullDHT >= 2000) {
+    pullDHT = millis(); runTemp();
+    if(WiFi.status() != WL_CONNECTED) digitalWrite(statusLEDWifi, 0);
+    else digitalWrite(statusLEDWifi, 1);
+  }
 }
 // {client, equipment, io, x, y}
 //    0       1       2   3   4  
@@ -98,7 +103,7 @@ void operateDataINPUI() {
 
 void responds(){
   sendPacket(MainHost, compress(attchDHT_temp(), attchDHT_humi(), attchLDR()
-  , led1pushStatus(DATA[2].toInt()) ,"X", pullStatus()
+  , led1pushStatus(DATA[5].toInt()) ,"X", pullStatus()
   , String(motorStatus), checkSpeed(), checkPosition()));
 }
 
@@ -134,7 +139,12 @@ String compress(String a2, String a3, String a4, String a5, String a6, String a7
 
 
 String pullStatus() {
+  if(DHTDis == true) {
+    return "DHT Connection lost!";
+  }
+  else{
     return ("IP: " + myIP + " PORT: " + port);
+  }
 }
 
 
@@ -147,10 +157,14 @@ void runTemp() {
   float H = dht.readHumidity();
   float T = dht.readTemperature();
   if(!isnan(H)) {
+    DHTDis = false;
     h = H;
   }
   if(!isnan(T)) {
     t = T;
+  }
+  else{
+    DHTDis = true;
   }
 }
 

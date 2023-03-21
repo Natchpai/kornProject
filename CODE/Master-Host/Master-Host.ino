@@ -36,6 +36,10 @@ String MastertoC2 = "";
 bool responseM1 = true;
 bool responseM2 = true;
 
+#define statusLEDM1 19
+#define statusLEDM2 18
+#define statusLEDWifi 5
+
 // 0  1    2    3    4     5     6      7    8    9      10
 // M1_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St_mPow_mSpeed_dir&
 // M2_Auto_Temp_Humi_Light_LEDsw_LEDval_M1St&
@@ -67,11 +71,14 @@ BlynkTimer timer;
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200); //คำสั่งเรียงตามนี้เท่านั้น
+  pinMode(statusLEDM1, OUTPUT);
+  pinMode(statusLEDM2, OUTPUT);
+  pinMode(statusLEDWifi, OUTPUT);
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pwd); 
   WiFi.config(fix_address, gateway, subnet);
   WiFi.begin(ssid, pwd);
   while(WiFi.status() != WL_CONNECTED) {
-    Serial.print("."); delay(800);
+    delay(800);
   } 
   Serial.println(""); Serial.println("Connected");
   myIP = WiFi.localIP().toString();
@@ -84,8 +91,12 @@ void loop() {
   // put your main code here, to run repeatedly:
   Blynk.run();
   // ss();
+  
+ if(millis() - times > 500) {//LEDsw_LEDval_M1St_mPow_mSpeed_dir&
 
- if(millis() - times > 900) {//LEDsw_LEDval_M1St_mPow_mSpeed_dir&
+    if(WiFi.status() != WL_CONNECTED) digitalWrite(statusLEDWifi, 0);
+    else digitalWrite(statusLEDWifi, 1);
+
     times = millis();
     if(Mstate == 1) {
       request(M1, "M1_A_T_H_L_" + String(M1SW1_status) + "_" + String(M1LED1_value) + "_Status_"
@@ -247,11 +258,13 @@ void request(char *targetHost, String text){
     Master2Client(targetHost, "Normal State");
     sendPacket(targetHost, text); 
     time_out1 = millis();
+    digitalWrite(statusLEDM1, 1);
     responseM1 = false;
     if(M1_status == "Lost connection!") M1_status = "Connected to Master";
   }
   else if((millis() - time_out1 >= 5000)) {
     time_out1 = millis();
+    digitalWrite(statusLEDM1, 0);
     Serial.println(String(targetHost) + " Request timed out.");
     Master2Client(targetHost, " Request timed out.");
     M1_status = "Lost connection!";
@@ -262,11 +275,13 @@ void request(char *targetHost, String text){
     Master2Client(targetHost, "Normal State");
     sendPacket(targetHost, text); 
     time_out2 = millis();
+    digitalWrite(statusLEDM2, 1);
     responseM2 = false;
     if(M2_status == "Lost connection!") M2_status = "Connected to Master";
   }
   else if((millis() - time_out2 >= 5000)) {
     time_out2 = millis();
+    digitalWrite(statusLEDM2, 0);
     Serial.println(String(targetHost) + " Request timed out.");
     Master2Client(targetHost, " Request timed out.");
     M2_status = "Lost connection!";

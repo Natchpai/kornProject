@@ -29,7 +29,9 @@ DHT dht(DHTPIN, DHTTYPE);
 unsigned long pullDHT;
 float t = 0;
 float h = 0;
+bool DHTDis = false;
 
+#define statusLEDWifi 5
 #define LDR1_Pin 34
 
 #define M2LED1 2
@@ -40,6 +42,7 @@ void setup() {
   Serial.begin(115200);
   WiFi.config(fix_address, gateway, subnet);
   WiFi.begin(ssid, pwd);
+  pinMode(statusLEDWifi, OUTPUT);
   while(WiFi.status() != WL_CONNECTED) {
     Serial.print("."); delay(800);
   } 
@@ -48,9 +51,7 @@ void setup() {
   Serial.println("IP:" + myIP + " Port:" + String(port));
   udp.begin(port);
 
-  // DHT 22 Pin 4
   dht.begin();
-  // pinMode(LED1, OUTPUT);
   ledcSetup(0, 5000, 8);
   ledcAttachPin(M2LED1, 0);
   
@@ -65,24 +66,26 @@ void loop() {
       packetBuffer[len] = '\0';
       String s(packetBuffer);
       splitString(s);
-      // Serial.println(s);
+      Serial.println(s);
       operateDataINPUI();
       respond();
     }
   }
-
-  if(millis() - pullDHT >= 2000) {pullDHT = millis(); runTemp();}
+  if(millis() - pullDHT >= 2000) {
+    pullDHT = millis(); runTemp();
+    if(WiFi.status() != WL_CONNECTED) digitalWrite(statusLEDWifi, 0);
+    else digitalWrite(statusLEDWifi, 1);
+  }
 }
 
 
 void operateDataINPUI() {
-  if(DATA[0] == "M2") {
-    actionLED1(DATA[5].toInt(), DATA[6].toInt());
-  }
+  actionLED1(DATA[5].toInt(), DATA[6].toInt());
 }
 
 void respond(){
-  sendPacket(MainHost, compress(attchDHT_temp(), attchDHT_humi(), attchLDR(), led1pushStatus(DATA[2].toInt()) ,"X", pullStatus(), "X", "X", "X"));
+  sendPacket(MainHost, compress(attchDHT_temp(), attchDHT_humi(), 
+  attchLDR(), led1pushStatus(DATA[5].toInt()) ,"X", pullStatus(), "X", "X", "X"));
 }
 
 void splitString(String str){
@@ -116,9 +119,13 @@ String compress(String a2, String a3, String a4, String a5, String a6, String a7
 }
 
 
-uint8_t count = 0;
 String pullStatus() {
-  return ("IP: " + myIP + " PORT: " + port);
+  if(DHTDis == true) {
+    return "DHT Connection lost!";
+  }
+  else{
+    return ("IP: " + myIP + " PORT: " + port);
+  }
 }
 
 
@@ -130,10 +137,14 @@ void runTemp() {
   float H = dht.readHumidity();
   float T = dht.readTemperature();
   if(!isnan(H)) {
+    DHTDis = false;
     h = H;
   }
   if(!isnan(T)) {
     t = T;
+  }
+  else{
+    DHTDis = true;
   }
 }
 
@@ -148,6 +159,7 @@ String attchLDR() {
 
 void actionLED1(uint8_t st, uint8_t value) {
   M2LED1_value = map(value, 0, 20, 0, 255);
+  Serial.println(String(st) + "/" +String(M2LED1_value));
   if(st != 0) {
     ledcWrite(0, M2LED1_value);
   }
