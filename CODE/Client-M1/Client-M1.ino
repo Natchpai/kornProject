@@ -5,8 +5,8 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 WiFiUDP udp;
-char *ssid = "Natchpai";
-char *pwd = "powerpay4";
+char *ssid = "TP-Link_93C4";
+char *pwd = "47299238";
 const uint16_t port = 2001;
 char packetBuffer[255];
 
